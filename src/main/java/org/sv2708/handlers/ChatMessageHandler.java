@@ -1,6 +1,6 @@
 package org.sv2708.handlers;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.ObjectMapper;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.scheduling.annotation.Scheduled;
@@ -78,7 +78,7 @@ public class ChatMessageHandler extends TextWebSocketHandler {
         }
 
         // Register the joined handle in Redis with TTL (15s)
-        redisTemplate.opsForValue().set("presence:" + finalHandle, nodeId, Duration.ofSeconds(15));
+        redisTemplate.opsForValue().set("presence:" + finalHandle, nodeId, Duration.ofSeconds(1000));
 
         activeUsers.put(finalHandle, session); // add to local connection map
         sessionToHandle.put(session.getId(), finalHandle); // add to session-handle map
@@ -140,7 +140,8 @@ public class ChatMessageHandler extends TextWebSocketHandler {
                 String payload = objectMapper.writeValueAsString(msg);
                 TextMessage textMessage = new TextMessage(payload);
                 for (WebSocketSession s : activeUsers.values()) {
-                    if (s.isOpen()) {
+                    var handle = sessionToHandle.getOrDefault(s.getId(), "");
+                    if (s.isOpen() && !handle.equals(msg.handle())) {
                         s.sendMessage(textMessage);
                     }
                 }

@@ -1,6 +1,6 @@
 package org.sv2708.handlers;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.ObjectMapper;
 import org.springframework.context.annotation.Lazy;
 import org.springframework.data.redis.connection.Message;
 import org.springframework.data.redis.connection.MessageListener;
@@ -9,7 +9,7 @@ import org.springframework.stereotype.Service;
 import java.io.IOException;
 
 @Service
-public class RedisMessageListener{
+public class RedisMessageListener implements MessageListener {
 
     private final ObjectMapper objectMapper = new ObjectMapper();
     private final ChatMessageHandler chatMessageHandler;
@@ -19,11 +19,12 @@ public class RedisMessageListener{
         this.chatMessageHandler = chatMessageHandler;
     }
 
-    public void onMessage(Message message) {
+    @Override
+    public void onMessage(Message message, byte[] pattern) {
         try {
             ChatMessage chatMessage = objectMapper.readValue(message.getBody(), ChatMessage.class);
             chatMessageHandler.deliverLocally(chatMessage);
-        } catch (IOException e) {
+        } catch (Exception e) {
             e.printStackTrace();
         }
     }
