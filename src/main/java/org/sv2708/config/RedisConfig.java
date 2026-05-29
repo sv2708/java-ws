@@ -14,7 +14,11 @@ import java.util.UUID;
 public class RedisConfig {
 
     public static final String BROADCAST_CHANNEL = "chat:broadcast";
-    
+
+    public static final int PRESENCE_EXPIRY_TTL= 15;
+
+    public static final String PRESENCE_KEY = "presence:";
+
     private final String nodeId = UUID.randomUUID().toString();
 
     @Bean

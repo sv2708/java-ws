@@ -15,10 +15,15 @@ import java.time.Duration;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
+import static org.sv2708.config.RedisConfig.BROADCAST_CHANNEL;
+import static org.sv2708.config.RedisConfig.PRESENCE_EXPIRY_TTL;
+import static org.sv2708.config.RedisConfig.PRESENCE_KEY;
+
 public class ChatMessageHandler extends TextWebSocketHandler {
 
     private static final org.slf4j.Logger logger = org.slf4j.LoggerFactory.getLogger(ChatMessageHandler.class);
     private final ObjectMapper objectMapper = new ObjectMapper();
+    
 
     // RedisTemplate to query redis. Deserializes the KV pairs to UTF-8 Strings
     @Autowired
@@ -73,12 +78,12 @@ public class ChatMessageHandler extends TextWebSocketHandler {
         int suffix = 1;
 
         // Check global presence in Redis, if already present, append a suffix to the handle value to be unique
-        while (redisTemplate.hasKey("presence:" + finalHandle)) {
+        while (redisTemplate.hasKey(PRESENCE_KEY + finalHandle)) {
             finalHandle = requestedHandle + (suffix++);
         }
 
         // Register the joined handle in Redis with TTL (15s)
-        redisTemplate.opsForValue().set("presence:" + finalHandle, nodeId, Duration.ofSeconds(1000));
+        redisTemplate.opsForValue().set(PRESENCE_KEY + finalHandle, nodeId, Duration.ofSeconds(PRESENCE_EXPIRY_TTL));
 
         activeUsers.put(finalHandle, session); // add to local connection map
         sessionToHandle.put(session.getId(), finalHandle); // add to session-handle map
@@ -97,7 +102,7 @@ public class ChatMessageHandler extends TextWebSocketHandler {
 
         ChatMessage broadcastMsg = new ChatMessage("BROADCAST", senderHandle, null, msg.content());
         // broadcast message will be sent to the redis topic "chat:broadcast" with Stringified Json of the message.
-        redisTemplate.convertAndSend(RedisConfig.BROADCAST_CHANNEL, objectMapper.writeValueAsString(broadcastMsg));
+        redisTemplate.convertAndSend(BROADCAST_CHANNEL, objectMapper.writeValueAsString(broadcastMsg));
     }
 
     private void handleDirect(WebSocketSession senderSession, ChatMessage msg) throws IOException {
@@ -109,7 +114,7 @@ public class ChatMessageHandler extends TextWebSocketHandler {
         // find the target node to which this message needs to be sent.
         // redis key is the "presence:<targetHandleId>"
         // redis value is the node-id that holds the connection for that handle
-        String targetNodeId = redisTemplate.opsForValue().get("presence:" + msg.to());
+        String targetNodeId = redisTemplate.opsForValue().get(PRESENCE_KEY + msg.to());
 
         // if the target handle is not mapped to any node, then they are not online.
         if (targetNodeId == null) {
@@ -160,7 +165,7 @@ public class ChatMessageHandler extends TextWebSocketHandler {
     @Scheduled(fixedRate = 5000)
     public void heartbeat() {
         for (String handle : activeUsers.keySet()) {
-            redisTemplate.expire("presence:" + handle, Duration.ofSeconds(15));
+            redisTemplate.expire(PRESENCE_KEY + handle, Duration.ofSeconds(PRESENCE_EXPIRY_TTL));
         }
     }
 
@@ -189,7 +194,7 @@ public class ChatMessageHandler extends TextWebSocketHandler {
         String handle = sessionToHandle.remove(session.getId());
         if (handle != null) {
             activeUsers.remove(handle);
-            redisTemplate.delete("presence:" + handle);
+            redisTemplate.delete(PRESENCE_KEY + handle);
             logger.info("User left: {} from node: {}", handle, nodeId);
         }
     }
