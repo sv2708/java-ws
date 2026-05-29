@@ -14,7 +14,11 @@ import java.util.UUID;
 public class RedisConfig {
 
     public static final String BROADCAST_CHANNEL = "chat:broadcast";
-    
+
+    public static final int PRESENCE_EXPIRY_TTL= 15;
+
+    public static final String PRESENCE_KEY = "presence:";
+
     private final String nodeId = UUID.randomUUID().toString();
 
     @Bean
@@ -34,20 +38,13 @@ public class RedisConfig {
 
     @Bean
     public RedisMessageListenerContainer redisContainer(RedisConnectionFactory connectionFactory,
-                                                        MessageListenerAdapter messageListenerAdapter,
+                                                        RedisMessageListener listener,
                                                         ChannelTopic nodeTopic,
                                                         ChannelTopic broadcastTopic) {
         RedisMessageListenerContainer container = new RedisMessageListenerContainer();
         container.setConnectionFactory(connectionFactory);
-        container.addMessageListener(messageListenerAdapter, nodeTopic); // listens to THIS node's topic
-        container.addMessageListener(messageListenerAdapter, broadcastTopic); // listens to broadcast topic
+        container.addMessageListener(listener, nodeTopic); // listens to THIS node's topic
+        container.addMessageListener(listener, broadcastTopic); // listens to broadcast topic
         return container;
-    }
-
-    @Bean
-    // This adapter class converts the MessageListener to the target instance "RedisMessageListener"
-    public MessageListenerAdapter messageListenerAdapter(RedisMessageListener listener) {
-        // messages will be passed to the listener instance
-        return new MessageListenerAdapter(listener, "onMessage");
     }
 }

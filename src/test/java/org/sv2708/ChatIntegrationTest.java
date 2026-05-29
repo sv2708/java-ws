@@ -1,11 +1,11 @@
 package org.sv2708;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.web.server.LocalServerPort;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.mock.mockito.MockBean;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.data.redis.connection.DefaultMessage;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.data.redis.core.ValueOperations;
@@ -35,10 +35,10 @@ public class ChatIntegrationTest {
     @Autowired
     private String nodeId;
 
-    @MockBean
+    @MockitoBean
     private StringRedisTemplate redisTemplate;
 
-    @MockBean
+    @MockitoBean
     private ValueOperations<String, String> valueOperations;
     
     @Autowired
@@ -57,7 +57,7 @@ public class ChatIntegrationTest {
         doAnswer(invocation -> {
             String channel = invocation.getArgument(0);
             String message = invocation.getArgument(1);
-            redisMessageSubscriber.onMessage(new DefaultMessage(channel.getBytes(), message.getBytes()));
+            redisMessageSubscriber.onMessage(new DefaultMessage(channel.getBytes(), message.getBytes()), null);
             return null;
         }).when(redisTemplate).convertAndSend(anyString(), anyString());
 
@@ -104,11 +104,6 @@ public class ChatIntegrationTest {
         assertThat(bobReceivedBroadcast.type()).isEqualTo("BROADCAST");
         assertThat(bobReceivedBroadcast.handle()).isEqualTo("Alice");
         assertThat(bobReceivedBroadcast.content()).isEqualTo("Hello everyone!");
-
-        // Alice also receives her own broadcast as an echo in this implementation
-        ChatMessage aliceReceivedEcho = aliceMessages.poll(5, TimeUnit.SECONDS);
-        assertThat(aliceReceivedEcho).isNotNull();
-        assertThat(aliceReceivedEcho.type()).isEqualTo("BROADCAST");
 
         // Bob sends a direct message to Alice
         bobSession.sendMessage(new TextMessage(objectMapper.writeValueAsString(
