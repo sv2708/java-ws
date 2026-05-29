@@ -1,56 +1,167 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>WebSocket Test</title>
+    <title>P2P WebSocket Chat</title>
     <style>
-        body { font-family: sans-serif; padding: 20px; }
-        #messages { list-style-type: none; padding: 0; }
-        #messages li { background: #f4f4f4; margin-bottom: 5px; padding: 8px; border-radius: 4px; }
-        .input-group { margin-bottom: 20px; }
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; padding: 20px; background-color: #f0f2f5; }
+        .container { max-width: 600px; margin: auto; background: white; padding: 20px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+        #messages { height: 300px; overflow-y: auto; border: 1px solid #ddd; padding: 10px; margin-bottom: 20px; list-style-type: none; background: #fff; }
+        #messages li { margin-bottom: 10px; padding: 8px; border-radius: 4px; border-left: 4px solid #ccc; }
+        .msg-broadcast { border-left-color: #007bff !important; }
+        .msg-direct { border-left-color: #28a745 !important; background-color: #e9f7ef !important; }
+        .msg-system { border-left-color: #6c757d !important; font-style: italic; color: #666; }
+        .msg-error { border-left-color: #dc3545 !important; background-color: #f8d7da !important; color: #721c24; }
+        .input-group { display: flex; gap: 10px; margin-bottom: 10px; }
+        input[type="text"] { flex-grow: 1; padding: 8px; border: 1px solid #ddd; border-radius: 4px; }
+        button { padding: 8px 16px; background-color: #007bff; color: white; border: none; border-radius: 4px; cursor: pointer; }
+        button:hover { background-color: #0069d9; }
+        .handle-display { font-weight: bold; color: #007bff; margin-bottom: 10px; }
+        #status { font-size: 0.8em; margin-top: 10px; color: #666; }
     </style>
 </head>
 <body>
-    <h1>Chat Test</h1>
-    <div class="input-group">
-        <input type="text" id="msg" placeholder="Type a message..." onkeypress="if(event.key === 'Enter') send()" />
-        <button onclick="send()">Send</button>
+    <div class="container">
+        <h1>P2P Chat</h1>
+        <div id="setup">
+            <div class="input-group">
+                <input type="text" id="handleInput" placeholder="Enter your handle..." onkeypress="if(event.key === 'Enter') join()" />
+                <button onclick="join()">Join</button>
+            </div>
+            <p id="status">Status: Disconnected</p>
+        </div>
+        <div id="chat" style="display:none;">
+            <div class="handle-display">Logged in as: <span id="myHandle"></span></div>
+            <ul id="messages"></ul>
+            <div class="input-group">
+                <input type="text" id="recipientInput" style="flex-grow: 0; width: 100px;" placeholder="Recipient" />
+                <input type="text" id="msgInput" placeholder="Type a message..." onkeypress="if(event.key === 'Enter') send()" />
+                <button onclick="send()">Send</button>
+            </div>
+            <button onclick="location.reload()" style="background-color: #6c757d;">Logout / Reset</button>
+        </div>
     </div>
-    <ul id="messages"></ul>
 
     <script>
-        const ws = new WebSocket('ws://' + window.location.host + '/ws');
+        let ws;
+        let myHandle = "";
 
-        ws.onopen = () => {
-            console.log('Connected to server');
-            const li = document.createElement('li');
-            li.style.color = 'green';
-            li.textContent = 'System: Connected to server';
-            document.getElementById('messages').appendChild(li);
-        };
-        
-        ws.onmessage = (event) => {
-            const li = document.createElement('li');
-            li.textContent = 'Received: ' + event.data;
-            document.getElementById('messages').appendChild(li);
-        };
+        function updateStatus(text, color = "#666") {
+            const status = document.getElementById('status');
+            status.textContent = "Status: " + text;
+            status.style.color = color;
+            console.log("Status update:", text);
+        }
 
-        ws.onclose = () => {
-            const li = document.createElement('li');
-            li.style.color = 'red';
-            li.textContent = 'System: Disconnected from server';
-            document.getElementById('messages').appendChild(li);
-        };
+        function join() {
+            const handle = document.getElementById('handleInput').value.trim();
+            if (!handle) {
+                alert("Please enter a handle");
+                return;
+            }
+
+            const host = window.location.host || 'localhost:8080';
+            const wsUrl = (window.location.protocol === 'https:' ? 'wss://' : 'ws://') + host + '/ws';
+            
+            console.log("Connecting to:", wsUrl);
+            updateStatus("Connecting...");
+
+            try {
+                ws = new WebSocket(wsUrl);
+
+                ws.onopen = () => {
+                    console.log("WebSocket opened");
+                    updateStatus("Connected, registering handle...", "green");
+                    ws.send(JSON.stringify({ type: 'JOIN', handle: handle }));
+                };
+
+                ws.onmessage = (event) => {
+                    console.log("Received data:", event.data);
+                    try {
+                        const msg = JSON.parse(event.data);
+                        handleMessage(msg);
+                    } catch (e) {
+                        console.error("Failed to parse message:", event.data, e);
+                    }
+                };
+
+                ws.onclose = (event) => {
+                    console.log("WebSocket closed:", event);
+                    updateStatus("Disconnected (" + event.code + ")", "red");
+                    addMessage({ type: 'SYSTEM', content: 'Disconnected from server.' });
+                    document.getElementById('setup').style.display = 'block';
+                    document.getElementById('chat').style.display = 'none';
+                };
+
+                ws.onerror = (error) => {
+                    console.error("WebSocket error:", error);
+                    updateStatus("Connection Error", "red");
+                };
+            } catch (e) {
+                console.error("WebSocket initialization failed:", e);
+                updateStatus("Initialization Failed", "red");
+            }
+        }
+
+        function handleMessage(msg) {
+            if (msg.type === 'SYSTEM' && msg.content.includes('Welcome')) {
+                myHandle = msg.handle;
+                document.getElementById('myHandle').textContent = myHandle;
+                document.getElementById('setup').style.display = 'none';
+                document.getElementById('chat').style.display = 'block';
+                updateStatus("Active as " + myHandle, "green");
+            }
+            addMessage(msg);
+        }
 
         function send() {
-            const input = document.getElementById('msg');
-            if (input.value) {
-                ws.send(input.value);
-                const li = document.createElement('li');
-                li.style.fontWeight = 'bold';
-                li.textContent = 'Sent: ' + input.value;
-                document.getElementById('messages').appendChild(li);
-                input.value = '';
+            if (!ws || ws.readyState !== WebSocket.OPEN) {
+                alert("Not connected");
+                return;
             }
+
+            const msgInput = document.getElementById('msgInput');
+            const recipientInput = document.getElementById('recipientInput');
+            const content = msgInput.value.trim();
+            const to = recipientInput.value.trim();
+
+            if (!content) return;
+
+            const payload = {
+                type: to ? 'DIRECT' : 'BROADCAST',
+                to: to || null,
+                content: content
+            };
+
+            console.log("Sending payload:", payload);
+            ws.send(JSON.stringify(payload));
+            
+            // Add local echo
+            if (to) {
+                addMessage({ type: 'DIRECT', handle: 'You (to ' + to + ')', content: content });
+            } else {
+                addMessage({ type: 'BROADCAST', handle: 'You', content: content });
+            }
+            
+            msgInput.value = '';
+        }
+
+        function addMessage(msg) {
+            const li = document.createElement('li');
+            li.className = 'msg-' + (msg.type || 'system').toLowerCase();
+            
+            let label = "";
+            const sender = msg.handle || "System";
+            
+            if (msg.type === 'DIRECT') label = `[Direct] ${sender}: `;
+            else if (msg.type === 'BROADCAST') label = `[All] ${sender}: `;
+            else if (msg.type === 'SYSTEM') label = `[System]: `;
+            else if (msg.type === 'ERROR') label = `[Error]: `;
+            else label = `[${msg.type}]: `;
+
+            li.textContent = label + (msg.content || "");
+            document.getElementById('messages').appendChild(li);
+            const list = document.getElementById('messages');
+            list.scrollTop = list.scrollHeight;
         }
     </script>
 </body>

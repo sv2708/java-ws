@@ -12,8 +12,7 @@ import org.sv2708.handlers.ChatMessageHandler;
 public class WebsocketConfig  implements WebSocketConfigurer {
     @Override
     public void registerWebSocketHandlers(WebSocketHandlerRegistry registry) {
-        registry.addHandler(chatHandler(), "/ws");
-
+        registry.addHandler(chatHandler(), "/ws").setAllowedOrigins("*");
     }
 
     @Bean
