@@ -1,7 +1,6 @@
 package org.sv2708.handlers;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import org.springframework.stereotype.Component;
 import org.springframework.web.socket.CloseStatus;
 import org.springframework.web.socket.TextMessage;
 import org.springframework.web.socket.WebSocketSession;
@@ -50,6 +49,18 @@ public class ChatMessageHandler extends TextWebSocketHandler {
             logger.error("Error processing message from " + session.getId(), e);
             sendError(session, "Error: " + e.getMessage());
         }
+    }
+
+
+    @Override
+    public void afterConnectionClosed(WebSocketSession session, CloseStatus status) {
+        removeUser(session);
+    }
+
+    @Override
+    public void handleTransportError(WebSocketSession session, Throwable error) {
+        removeUser(session);
+        try { session.close(); } catch (Exception ignored) {}
     }
 
     private void handleJoin(WebSocketSession session, ChatMessage msg) throws IOException {
@@ -116,17 +127,6 @@ public class ChatMessageHandler extends TextWebSocketHandler {
 
     private void sendError(WebSocketSession session, String errorContent) throws IOException {
         sendMessage(session, new ChatMessage("ERROR", "SYSTEM", null, errorContent));
-    }
-
-    @Override
-    public void afterConnectionClosed(WebSocketSession session, CloseStatus status) {
-        removeUser(session);
-    }
-
-    @Override
-    public void handleTransportError(WebSocketSession session, Throwable error) {
-        removeUser(session);
-        try { session.close(); } catch (Exception ignored) {}
     }
 
     private void removeUser(WebSocketSession session) {
