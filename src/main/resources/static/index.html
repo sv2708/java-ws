@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>WebSocket Test</title>
+    <style>
+        body { font-family: sans-serif; padding: 20px; }
+        #messages { list-style-type: none; padding: 0; }
+        #messages li { background: #f4f4f4; margin-bottom: 5px; padding: 8px; border-radius: 4px; }
+        .input-group { margin-bottom: 20px; }
+    </style>
+</head>
+<body>
+    <h1>Chat Test</h1>
+    <div class="input-group">
+        <input type="text" id="msg" placeholder="Type a message..." onkeypress="if(event.key === 'Enter') send()" />
+        <button onclick="send()">Send</button>
+    </div>
+    <ul id="messages"></ul>
+
+    <script>
+        const ws = new WebSocket('ws://' + window.location.host + '/ws');
+
+        ws.onopen = () => {
+            console.log('Connected to server');
+            const li = document.createElement('li');
+            li.style.color = 'green';
+            li.textContent = 'System: Connected to server';
+            document.getElementById('messages').appendChild(li);
+        };
+        
+        ws.onmessage = (event) => {
+            const li = document.createElement('li');
+            li.textContent = 'Received: ' + event.data;
+            document.getElementById('messages').appendChild(li);
+        };
+
+        ws.onclose = () => {
+            const li = document.createElement('li');
+            li.style.color = 'red';
+            li.textContent = 'System: Disconnected from server';
+            document.getElementById('messages').appendChild(li);
+        };
+
+        function send() {
+            const input = document.getElementById('msg');
+            if (input.value) {
+                ws.send(input.value);
+                const li = document.createElement('li');
+                li.style.fontWeight = 'bold';
+                li.textContent = 'Sent: ' + input.value;
+                document.getElementById('messages').appendChild(li);
+                input.value = '';
+            }
+        }
+    </script>
+</body>
+</html>
